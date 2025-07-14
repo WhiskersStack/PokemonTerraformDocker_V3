@@ -44,12 +44,15 @@ chown -R ubuntu:ubuntu /home/ubuntu/PokemonWithMongo
 
 # --- Fallback: Add minimal requirements.txt if missing ---
 if [ ! -f /home/ubuntu/PokemonWithMongo/requirements.txt ]; then
-  echo "[INFO] Creating minimal requirements.txt with pymongo"
-  echo "pymongo" > /home/ubuntu/PokemonWithMongo/requirements.txt
+  echo "[INFO] Creating minimal requirements.txt with pymongo + requests"
+  cat <<'REQ' >/home/ubuntu/PokemonWithMongo/requirements.txt
+pymongo
+requests
+REQ
 fi
 
 # --- Create Dockerfile for game ---
-cat <<'EOF' > /home/ubuntu/PokemonWithMongo/Dockerfile
+cat <<'EOF' >/home/ubuntu/PokemonWithMongo/Dockerfile
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -76,10 +79,11 @@ if [ -n "$SSH_CONNECTION" ] && [ -z "$POKEMON_GAME_LAUNCHED" ]; then
     --output text)
 
   cd ~/PokemonWithMongo
-  docker run --rm \
+  docker run --rm -it \
     -e PRIVATE_IP_DB="$PRIVATE_IP_DB" \
     pokemon-game
 fi
 EOF
+
 
 echo "[DONE] SSH into this instance and the Pokémon game will auto-launch inside Docker (connected to remote MongoDB)."
