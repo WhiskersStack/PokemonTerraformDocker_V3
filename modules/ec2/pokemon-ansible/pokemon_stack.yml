@@ -1,0 +1,167 @@
+- name: Deploy Pokémon Stack on Remote EC2
+  hosts: web
+  become: true
+  remote_user: ubuntu
+
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Download Docker Compose v2 binary
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.4/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Enable and start Docker
+      service:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Create project directories
+      file:
+        path: /home/ubuntu/pokemon-stack/app
+        state: directory
+        recurse: yes
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Create .env file
+      copy:
+        dest: /home/ubuntu/pokemon-stack/.env
+        content: |
+          MONGO_DB=pokemon
+
+    - name: Create docker-compose.yml
+      copy:
+        dest: /home/ubuntu/pokemon-stack/docker-compose.yml
+        content: |
+          version: "3.9"
+          services:
+            mongodb:
+              image: mongo:7
+              restart: always
+              environment:
+                MONGO_INITDB_DATABASE: "${MONGO_DB}"
+              volumes:
+                - mongo_data:/data/db
+              networks:
+                - backend
+
+            flask:
+              build: ./app
+              restart: always
+              env_file: .env
+              environment:
+                MONGO_URI: "mongodb://mongodb:27017/${MONGO_DB}"
+              ports:
+                - "5000:5000"
+              depends_on:
+                - mongodb
+              networks:
+                - backend
+
+          volumes:
+            mongo_data:
+
+          networks:
+            backend:
+
+    - name: Create requirements.txt
+      copy:
+        dest: /home/ubuntu/pokemon-stack/app/requirements.txt
+        content: |
+          Flask==3.0.3
+          pymongo[srv]==4.8.0
+
+    - name: Create app Dockerfile
+      copy:
+        dest: /home/ubuntu/pokemon-stack/app/Dockerfile
+        content: |
+          FROM python:3.12-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          COPY . .
+          ENV FLASK_APP=main.py
+          CMD ["flask", "run", "--host", "0.0.0.0", "--port", "5000"]
+
+    - name: Create app main.py
+      copy:
+        dest: /home/ubuntu/pokemon-stack/app/main.py
+        content: |
+          from flask import Flask, jsonify, request
+          from pymongo import MongoClient
+          import os
+
+          app = Flask(__name__)
+          client = MongoClient(os.environ["MONGO_URI"])
+          db = client.get_database()
+
+          @app.route("/health")
+          def health():
+              try:
+                  client.admin.command("ping")
+                  return jsonify(status="ok"), 200
+              except:
+                  return jsonify(status="mongo unreachable"), 500
+
+          @app.route("/pokemon", methods=["GET"])
+          def get_all_pokemon():
+              docs = list(db.pokemon.find({}, {"_id": 0}))
+              return jsonify(docs)
+
+          @app.route("/pokemon", methods=["POST"])
+          def upsert_pokemon():
+              data = request.get_json()
+              if not data or "id" not in data:
+                  return jsonify(error="Missing 'id' field"), 400
+              db.pokemon.update_one({"id": data["id"]}, {"$set": data}, upsert=True)
+              return jsonify(result="upserted", id=data["id"])
+
+          @app.route("/pokemon/<int:poke_id>")
+          def get_pokemon(poke_id):
+              doc = db.pokemon.find_one({"id": poke_id}, {"_id": 0})
+              return jsonify(doc or {"error": "not found"})
+
+          if __name__ == "__main__":
+              app.run(debug=True)
+
+    - name: Build containers
+      shell: docker-compose -f /home/ubuntu/pokemon-stack/docker-compose.yml build
+      args:
+        chdir: /home/ubuntu/pokemon-stack
+
+    - name: Start containers
+      shell: docker-compose -f /home/ubuntu/pokemon-stack/docker-compose.yml up -d
+      args:
+        chdir: /home/ubuntu/pokemon-stack
+
+    - name: Wait for Flask app to start
+      wait_for:
+        port: 5000
+        delay: 5
+        timeout: 30
+
+    - name: Test Flask health endpoint
+      uri:
+        url: http://localhost:5000/health
+        return_content: yes
+      register: flask_health
+
+    - name: Show health check result
+      debug:
