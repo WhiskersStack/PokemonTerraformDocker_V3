@@ -1,11 +1,6 @@
 # 🐾 PokéTerraform  ⚙️🐳
 
 > **Terraform + Docker reference project that spins up a containerized PokéAPI stack on AWS in minutes.**
-
-![GitHub repo size](https://img.shields.io/github/repo-size/your‑org/PokemonTerraformDocker)
-![GitHub license](https://img.shields.io/github/license/your‑org/PokemonTerraformDocker)
-![GitHub last commit](https://img.shields.io/github/last-commit/your‑org/PokemonTerraformDocker)
-
 ---
 
 ## 🌟 Table of Contents
