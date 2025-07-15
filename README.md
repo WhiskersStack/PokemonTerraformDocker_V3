@@ -50,7 +50,7 @@ This project automates the infrastructure and deployment of a Pokémon game and 
    * Two EC2 instances:
 
      * 🛢️ DB EC2 (Flask + MongoDB)
-     * 🎮 Game EC2 (Pokémon client)
+     * 🎮 Game EC2 (Pokémon client) --->  [Pokemon Game](https://github.com/WhiskersStack/PokemonWithMongo)
 3. ✨ Terraform executes `user_data` scripts to:
 
    * Install Docker
