@@ -13,13 +13,7 @@ variable "key_name" {
   type        = string
   default     = "MyKeyPair" # Example key pair name, replace with your own
 }
-# variable "tags" {
-#   description = "Tags to apply to the instance"
-#   type        = map(string)
-#   default = {
-#     Name = "PokemonGame" # Default tag, can be overridden
-#   }
-# }
+
 variable "vpc_security_group_ids" {
   description = "List of security group IDs to associate with the instance"
   type        = list(string)
